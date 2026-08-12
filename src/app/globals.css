@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, system-ui,
+    sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  text-rendering: optimizeLegibility;
+}
+
+/* اعداد داخل اینپوت‌ها در فرم‌های لاتین مشکلی ایجاد نکنند */
+input[type="date"] {
+  direction: ltr;
+}
+
+/* ---------- استایل چاپ معرفی‌نامه ---------- */
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .letter-sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* اسکرول‌بار ظریف برای جداول */
+.thin-scroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
