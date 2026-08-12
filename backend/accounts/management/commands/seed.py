@@ -17,16 +17,24 @@ class Command(BaseCommand):
         self.stdout.write("🌱 Seeding database...")
 
         # ---- Admin (University) ----
-        admin_user = User.objects.create_user(
-            username="admin",
+        admin_user, created = User.objects.get_or_create(
             email="admin@university.ac.ir",
-            password="admin1234",
-            full_name="دکتر احمد محمدی",
-            role=User.Role.ADMIN,
-            phone="021-12345678",
-            city="تهران",
+            defaults={
+                "username": "admin",
+                "full_name": "دکتر احمد محمدی",
+                "role": User.Role.ADMIN,
+                "phone": "021-12345678",
+                "city": "تهران",
+                "is_staff": True,
+                "is_superuser": True,
+            },
         )
-        self.stdout.write(f"  ✓ Admin: {admin_user.email}")
+        if created:
+            admin_user.set_password("admin1234")
+            admin_user.save()
+            self.stdout.write(f"  ✓ Admin: {admin_user.email} (also Django superuser)")
+        else:
+            self.stdout.write(f"  ⚠ Admin already exists: {admin_user.email}")
 
         # ---- Students ----
         students_data = [

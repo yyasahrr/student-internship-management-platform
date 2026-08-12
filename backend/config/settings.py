@@ -94,9 +94,10 @@ WSGI_APPLICATION = "config.wsgi.application"
 _database_url = os.environ.get("DATABASE_URL", "")
 if _database_url:
     # Parse DATABASE_URL: postgresql://user:pass@host:port/dbname
+    # Handles @ in password by splitting on the LAST @ before host:port
     import re
     _m = re.match(
-        r"postgres(?:ql)?://(?P<user>[^:]+):(?P<pass>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)",
+        r"postgres(?:ql)?://(?P<user>[^:]+):(?P<pass>.+)@(?P<host>[^:@]+):(?P<port>\d+)/(?P<name>.+)",
         _database_url,
     )
     if _m:
