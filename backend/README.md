@@ -4,20 +4,71 @@
 
 ## 🚀 شروع سریع
 
+### روش ۱: Docker Compose (توصیه شده — PostgreSQL)
+
+پیش‌نیاز: [Docker](https://docs.docker.com/get-docker/) نصب باشد.
+
 ```bash
 cd backend
 
-# فعال‌سازی محیط مجازی
+# با یک دستور PostgreSQL + Django بالا می‌آید:
+docker compose up --build -d
+
+# یا از اسکریپت آماده:
+bash run.sh
+```
+
+سپس API در `http://localhost:8000/api/` در دسترس است.
+
+```bash
+# مشاهده لاگ‌ها
+docker compose logs -f api
+
+# توقف
+docker compose down
+
+# توقف و حذف دیتابیس
+docker compose down -v
+```
+
+### روش ۲: اجرای لوکال (بدون Docker)
+
+```bash
+cd backend
+
+# اسکریپت هوشمند (خودکار venv, migrate, seed, runserver)
+bash run.sh
+
+# یا دستی:
+python3 -m venv venv
 source venv/bin/activate
-
-# ایجاد جداول دیتابیس
+pip install -r requirements.txt
 python manage.py migrate
-
-# بارگذاری داده‌های آزمایشی
 python manage.py seed
-
-# اجرای سرور
 python manage.py runserver 0.0.0.0:8000
+```
+
+> بدون PostgreSQL، به‌صورت خودکار از **SQLite** استفاده می‌شود.
+> برای PostgreSQL لوکال، متغیرهای `POSTGRES_*` را در `.env` تنظیم کنید.
+
+### روش ۳: PostgreSQL لوکال (بدون Docker)
+
+```bash
+# PostgreSQL را نصب کنید (مثلاً با brew یا apt):
+# macOS:  brew install postgresql@16
+# Ubuntu: sudo apt install postgresql postgresql-contrib
+
+# ساخت دیتابیس:
+createdb karamoozyar
+
+# تنظیم .env:
+echo "POSTGRES_HOST=localhost" >> .env
+echo "POSTGRES_DB=karamoozyar" >> .env
+echo "POSTGRES_USER=postgres" >> .env
+echo "POSTGRES_PASSWORD=postgres" >> .env
+
+# اجرا:
+bash run.sh
 ```
 
 ## 📋 حساب‌های آزمایشی

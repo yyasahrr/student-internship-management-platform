@@ -1,0 +1,61 @@
+# کارآموزیار — Docker Compose
+# Usage: docker compose up -d
+# Or:    docker-compose up -d
+
+version: "3.9"
+
+services:
+  # ---------- PostgreSQL Database ---------- #
+  db:
+    image: postgres:16-alpine
+    container_name: karamoozyar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: karamoozyar
+      POSTGRES_USER: karamoozyar
+      POSTGRES_PASSWORD: karamoozyar123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U karamoozyar -d karamoozyar"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Django Backend API ---------- #
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: karamoozyar-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=karamoozyar
+      - POSTGRES_USER=karamoozyar
+      - POSTGRES_PASSWORD=karamoozyar123
+      - POSTGRES_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    command: >
+      bash -c "
+        python manage.py migrate --noinput &&
+        python manage.py seed 2>/dev/null || true &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+
+volumes:
+  pgdata:
+    driver: local
+  media_data:
+    driver: local

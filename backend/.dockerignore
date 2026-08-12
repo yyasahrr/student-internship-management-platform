@@ -1,0 +1,12 @@
+# Docker build exclusions
+venv/
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+.env
+.git/
+.gitignore
+*.md
+media/
+staticfiles/
