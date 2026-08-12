@@ -87,11 +87,37 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 # --------------------------------------------------------------------------- #
 # Database
-# Default: SQLite for local development
-# Set POSTGRES_HOST env var to switch to PostgreSQL (same DB as Drizzle schema)
+# Supports DATABASE_URL or individual POSTGRES_* variables.
+# Falls back to SQLite if neither is set.
 # --------------------------------------------------------------------------- #
 
-if os.environ.get("POSTGRES_HOST"):
+_database_url = os.environ.get("DATABASE_URL", "")
+if _database_url:
+    # Parse DATABASE_URL: postgresql://user:pass@host:port/dbname
+    import re
+    _m = re.match(
+        r"postgres(?:ql)?://(?P<user>[^:]+):(?P<pass>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)",
+        _database_url,
+    )
+    if _m:
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": _m.group("name"),
+                "USER": _m.group("user"),
+                "PASSWORD": _m.group("pass"),
+                "HOST": _m.group("host"),
+                "PORT": _m.group("port"),
+            }
+        }
+    else:
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": BASE_DIR / "db.sqlite3",
+            }
+        }
+elif os.environ.get("POSTGRES_HOST"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
