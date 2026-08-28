@@ -80,7 +80,7 @@ Write-Host "Setting up database..." -ForegroundColor Yellow
 
 $DB_NAME = "karamoozyar"
 $DB_USER = "karamoozyar"
-$DB_PASS = "karamoozyar123"
+$DB_PASS = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { [guid]::NewGuid().ToString("N") }
 
 # Ask for postgres superuser password
 Write-Host ""
@@ -150,16 +150,6 @@ Write-Host "Running migrations..." -ForegroundColor Yellow
 python manage.py migrate --noinput
 Write-Host "  ✓ Migrations complete" -ForegroundColor Green
 
-# ──── Step 7: Seed Data ────
-Write-Host ""
-Write-Host "Loading sample data..." -ForegroundColor Yellow
-try {
-    python manage.py seed 2>$null
-    Write-Host "  ✓ Sample data loaded" -ForegroundColor Green
-} catch {
-    Write-Host "  (seed data already loaded)" -ForegroundColor Yellow
-}
-
 # ──── Done! ────
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
@@ -168,11 +158,6 @@ Write-Host "================================================" -ForegroundColor G
 Write-Host ""
 Write-Host "  API:          http://localhost:8000/api/" -ForegroundColor Cyan
 Write-Host "  Django Admin: http://localhost:8000/django-admin/" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  Test Accounts:" -ForegroundColor Yellow
-Write-Host "    Admin:    admin@university.ac.ir / admin1234"
-Write-Host "    Student:  ali@student.ac.ir / student1234"
-Write-Host "    Company:  hr@digikala.com / company1234"
 Write-Host ""
 Write-Host "Starting server... (Press Ctrl+C to stop)" -ForegroundColor Cyan
 Write-Host ""

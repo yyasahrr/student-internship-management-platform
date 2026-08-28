@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { companies } from "@/db/schema";
 import { updateCompanyProfile } from "@/lib/actions/company-actions";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Company } from "@/lib/server-api";
 import { Card, Field, SectionTitle, StatusBadge, btnPrimary, inputCls } from "@/components/ui";
 
 export const metadata: Metadata = { title: "پروفایل شرکت | کارآموزیار" };
@@ -11,9 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CompanyProfilePage() {
   const session = await requireRole("company");
-  const company = await db.query.companies.findFirst({
-    where: eq(companies.userId, session.userId),
-  });
+  const company = await apiFetch<Company>("/accounts/company/profile/", session);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -25,7 +21,7 @@ export default async function CompanyProfilePage() {
       <Card className="p-6 sm:p-8">
         <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-50 p-4">
           <span className="text-sm font-bold text-slate-700">وضعیت تأیید اعتبار:</span>
-          <StatusBadge status={company?.status ?? "pending"} />
+          <StatusBadge status={company.status} />
         </div>
 
         <form action={updateCompanyProfile} className="space-y-5">
@@ -34,7 +30,7 @@ export default async function CompanyProfilePage() {
               <input
                 name="name"
                 required
-                defaultValue={company?.name ?? ""}
+                defaultValue={company.name ?? ""}
                 className={inputCls}
               />
             </Field>
@@ -42,7 +38,7 @@ export default async function CompanyProfilePage() {
               <input
                 name="industry"
                 required
-                defaultValue={company?.industry ?? ""}
+                defaultValue={company.industry ?? ""}
                 placeholder="مثلاً: فناوری اطلاعات، فولاد، انرژی"
                 className={inputCls}
               />
@@ -52,7 +48,7 @@ export default async function CompanyProfilePage() {
                 name="licenseNumber"
                 dir="ltr"
                 required
-                defaultValue={company?.licenseNumber ?? ""}
+                defaultValue={company.license_number ?? ""}
                 className={inputCls}
               />
             </Field>
@@ -60,14 +56,14 @@ export default async function CompanyProfilePage() {
               <input
                 name="contactPhone"
                 dir="ltr"
-                defaultValue={company?.contactPhone ?? ""}
+                defaultValue={company.contact_phone ?? ""}
                 className={inputCls}
               />
             </Field>
             <Field label="آدرس">
               <input
                 name="address"
-                defaultValue={company?.address ?? ""}
+                defaultValue={company.address ?? ""}
                 className={inputCls}
               />
             </Field>
@@ -75,7 +71,7 @@ export default async function CompanyProfilePage() {
               <input
                 name="website"
                 dir="ltr"
-                defaultValue={company?.website ?? ""}
+                defaultValue={company.website ?? ""}
                 placeholder="https://..."
                 className={inputCls}
               />
@@ -86,7 +82,7 @@ export default async function CompanyProfilePage() {
             <textarea
               name="description"
               rows={5}
-              defaultValue={company?.description ?? ""}
+              defaultValue={company.description ?? ""}
               placeholder="درباره شرکت، محصولات و خدمات خود بنویسید..."
               className={inputCls}
             />

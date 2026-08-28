@@ -1,8 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { and, desc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, companies, internships } from "@/db/schema";
 import { Card, EmptyState, StatusBadge, inputCls } from "@/components/ui";
 import { faDate, faDigits } from "@/lib/utils";
 
@@ -11,62 +8,36 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
+type Internship = {
+  id: number; title: string; capacity: number; required_skills: string[];
+  city: string; major: string; start_date: string; end_date: string;
+  status: string; remaining_capacity: number; company: { name: string };
+};
+type InternshipResponse = {
+  results: Internship[] | { results: Internship[]; filters?: Filters };
+  filters?: Filters;
+};
+type Filters = { cities: string[]; majors: string[] };
+
 export default async function InternshipsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; city?: string; major?: string }>;
 }) {
   const { q, city, major } = await searchParams;
-  const q_ = q?.trim() ?? "";
-
-  const conditions = [
-    eq(internships.status, "active"),
-    inArray(
-      internships.companyId,
-      db
-        .select({ id: companies.id })
-        .from(companies)
-        .where(eq(companies.status, "approved"))
-    ),
-  ];
-
-  if (q_) {
-    conditions.push(
-      or(
-        ilike(internships.title, `%${q_}%`),
-        ilike(sql`${internships.requiredSkills}::text`, `%${q_}%`),
-        inArray(
-          internships.companyId,
-          db
-            .select({ id: companies.id })
-            .from(companies)
-            .where(ilike(companies.name, `%${q_}%`))
-        )
-      )!
-    );
-  }
-  if (city && city !== "all") conditions.push(eq(internships.city, city));
-  if (major && major !== "all") conditions.push(eq(internships.major, major));
-
-  const [rows, cities, majors] = await Promise.all([
-    db.query.internships.findMany({
-      where: and(...conditions),
-      with: {
-        company: true,
-        applications: { where: eq(applications.status, "accepted") },
-      },
-      orderBy: [desc(internships.createdAt)],
-      limit: 60,
-    }),
-    db
-      .selectDistinct({ city: internships.city })
-      .from(internships)
-      .where(and(eq(internships.status, "active"), isNotNull(internships.city))),
-    db
-      .selectDistinct({ major: internships.major })
-      .from(internships)
-      .where(and(eq(internships.status, "active"), isNotNull(internships.major))),
-  ]);
+  const query = new URLSearchParams();
+  if (q?.trim()) query.set("q", q.trim());
+  if (city && city !== "all") query.set("city", city);
+  if (major && major !== "all") query.set("major", major);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const response = await fetch(`${apiUrl}/internships/?${query}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("دریافت فرصت‌های کارآموزی از بک‌اند ناموفق بود.");
+  const data = (await response.json()) as InternshipResponse;
+  const nested = Array.isArray(data.results) ? null : data.results;
+  const rows = Array.isArray(data.results) ? data.results : data.results.results;
+  const filters = data.filters ?? nested?.filters ?? { cities: [], majors: [] };
+  const cities = [...new Set(filters.cities.filter(Boolean))];
+  const majors = [...new Set(filters.majors.filter(Boolean))];
 
   return (
     <div className="py-8">
@@ -90,21 +61,17 @@ export default async function InternshipsPage({
         />
         <select name="city" defaultValue={city ?? "all"} className={inputCls}>
           <option value="all">همه شهرها</option>
-          {cities
-            .filter((c) => c.city)
-            .map((c) => (
-              <option key={c.city} value={c.city!}>
-                {c.city}
+          {cities.map((cityName) => (
+              <option key={cityName} value={cityName}>
+                {cityName}
               </option>
             ))}
         </select>
         <select name="major" defaultValue={major ?? "all"} className={inputCls}>
           <option value="all">همه رشته‌ها</option>
-          {majors
-            .filter((m) => m.major)
-            .map((m) => (
-              <option key={m.major} value={m.major!}>
-                {m.major}
+          {majors.map((majorName) => (
+              <option key={majorName} value={majorName}>
+                {majorName}
               </option>
             ))}
         </select>
@@ -125,7 +92,7 @@ export default async function InternshipsPage({
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {rows.map((i) => {
-            const remaining = Math.max(0, i.capacity - i.applications.length);
+            const remaining = i.remaining_capacity;
             return (
               <Link key={i.id} href={`/internships/${i.id}`} className="block">
                 <Card className="flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
@@ -142,11 +109,11 @@ export default async function InternshipsPage({
                     <span>📍 {i.city}</span>
                     <span>🎓 {i.major}</span>
                     <span>
-                      🗓️ {faDate(i.startDate)} تا {faDate(i.endDate)}
+                      🗓️ {faDate(i.start_date)} تا {faDate(i.end_date)}
                     </span>
                   </div>
                   <div className="mb-4 flex flex-wrap gap-1.5">
-                    {(i.requiredSkills ?? []).map((s) => (
+                    {(i.required_skills ?? []).map((s) => (
                       <span
                         key={s}
                         className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"

@@ -2,8 +2,6 @@
 # Usage: docker compose up -d
 # Or:    docker-compose up -d
 
-version: "3.9"
-
 services:
   # ---------- PostgreSQL Database ---------- #
   db:
@@ -13,7 +11,7 @@ services:
     environment:
       POSTGRES_DB: karamoozyar
       POSTGRES_USER: karamoozyar
-      POSTGRES_PASSWORD: karamoozyar123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -39,19 +37,18 @@ services:
       - POSTGRES_HOST=db
       - POSTGRES_DB=karamoozyar
       - POSTGRES_USER=karamoozyar
-      - POSTGRES_PASSWORD=karamoozyar123
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       - POSTGRES_PORT=5432
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - .:/app
       - media_data:/app/media
     command: >
       bash -c "
         python manage.py migrate --noinput &&
-        python manage.py seed 2>/dev/null || true &&
-        python manage.py runserver 0.0.0.0:8000
+        python manage.py collectstatic --noinput &&
+        gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60 --access-logfile -
       "
 
 volumes:

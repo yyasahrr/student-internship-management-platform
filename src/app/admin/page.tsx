@@ -1,9 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { count, desc, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, companies, internships, letters, students } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Company, type Paginated } from "@/lib/server-api";
 import {
   Card,
   EmptyState,
@@ -20,27 +18,11 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   const session = await requireRole("admin");
-
-  const [
-    [{ value: pendingCompaniesCount }],
-    [{ value: totalStudentsCount }],
-    [{ value: activeInternshipsCount }],
-    [{ value: acceptedApplicationsCount }],
-    [{ value: lettersCount }],
-    pendingCompanies,
-  ] = await Promise.all([
-    db.select({ value: count() }).from(companies).where(eq(companies.status, "pending")),
-    db.select({ value: count() }).from(students),
-    db.select({ value: count() }).from(internships).where(eq(internships.status, "active")),
-    db.select({ value: count() }).from(applications).where(eq(applications.status, "accepted")),
-    db.select({ value: count() }).from(letters),
-    db.query.companies.findMany({
-      where: eq(companies.status, "pending"),
-      with: { user: true },
-      orderBy: [desc(companies.createdAt)],
-      limit: 10,
-    }),
+  const [stats, companyData] = await Promise.all([
+    apiFetch<{ pending_companies: number; total_students: number; active_internships: number; accepted_applications: number; issued_letters: number }>("/internships/stats/"),
+    apiFetch<Paginated<Company>>("/admin/companies/", session),
   ]);
+  const pendingCompanies = companyData.results.filter((item) => item.status === "pending").slice(0, 10);
 
   return (
     <div className="space-y-8">
@@ -70,11 +52,11 @@ export default async function AdminDashboard() {
 
       {/* آمار کلی */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard icon="🏢" label="شرکت در انتظار بررسی" value={faDigits(pendingCompaniesCount)} accent="bg-amber-50 text-amber-700" />
-        <StatCard icon="🎓" label="دانشجویان" value={faDigits(totalStudentsCount)} accent="bg-violet-50 text-violet-700" />
-        <StatCard icon="💼" label="فرصت فعال" value={faDigits(activeInternshipsCount)} />
-        <StatCard icon="✅" label="پذیرش موفق" value={faDigits(acceptedApplicationsCount)} accent="bg-emerald-50 text-emerald-700" />
-        <StatCard icon="📜" label="معرفی‌نامه صادرشده" value={faDigits(lettersCount)} accent="bg-sky-50 text-sky-700" />
+        <StatCard icon="🏢" label="شرکت در انتظار بررسی" value={faDigits(stats.pending_companies)} accent="bg-amber-50 text-amber-700" />
+        <StatCard icon="🎓" label="دانشجویان" value={faDigits(stats.total_students)} accent="bg-violet-50 text-violet-700" />
+        <StatCard icon="💼" label="فرصت فعال" value={faDigits(stats.active_internships)} />
+        <StatCard icon="✅" label="پذیرش موفق" value={faDigits(stats.accepted_applications)} accent="bg-emerald-50 text-emerald-700" />
+        <StatCard icon="📜" label="معرفی‌نامه صادرشده" value={faDigits(stats.issued_letters)} accent="bg-sky-50 text-sky-700" />
       </div>
 
       {/* شرکت‌های در انتظار تأیید */}
@@ -103,11 +85,11 @@ export default async function AdminDashboard() {
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
                     <span>🏢 حوزه: {c.industry || "—"}</span>
-                    <span>🔖 مجوز: {c.licenseNumber || "—"}</span>
-                    <span>📞 {c.contactPhone || c.user.phone || "—"}</span>
+                    <span>🔖 مجوز: {c.license_number || "—"}</span>
+                    <span>📞 {c.contact_phone || c.user.phone || "—"}</span>
                     <span>✉️ {c.user.email}</span>
                     <span>📍 {c.address || "—"}</span>
-                    <span>🗓️ ثبت: {faDate(c.createdAt)}</span>
+                    <span>🗓️ ثبت: {faDate(c.created_at)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">

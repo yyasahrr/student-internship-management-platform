@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { letters } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Letter } from "@/lib/server-api";
 import PrintButton from "@/components/print-button";
 import { faDate } from "@/lib/utils";
 
@@ -16,16 +14,15 @@ export default async function LetterPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole("admin");
+  const session = await requireRole("admin");
 
   const { id } = await params;
   const letterId = Number(id);
   if (!Number.isFinite(letterId)) notFound();
 
-  const letter = await db.query.letters.findFirst({
-    where: eq(letters.id, letterId),
-  });
-  if (!letter) notFound();
+  let letter: Letter;
+  try { letter = await apiFetch<Letter>(`/internships/admin/letters/${letterId}/`, session); }
+  catch { notFound(); }
 
   return (
     <div className="space-y-6 py-4">
@@ -65,10 +62,10 @@ export default async function LetterPage({
 
         <div className="mb-6 flex items-center justify-between border-b border-slate-200 pb-4 text-xs font-semibold text-slate-500">
           <span>
-            شماره نامه: <span className="font-black text-slate-800">{letter.serialNo}</span>
+            شماره نامه: <span className="font-black text-slate-800">{letter.serial_no}</span>
           </span>
           <span>
-            تاریخ: <span className="font-black text-slate-800">{faDate(letter.issuedAt)}</span>
+            تاریخ: <span className="font-black text-slate-800">{faDate(letter.issued_at)}</span>
           </span>
         </div>
 
@@ -81,7 +78,7 @@ export default async function LetterPage({
         <div className="space-y-4 text-justify text-[15px] leading-9 text-slate-800">
           <p>
             <span className="font-black">گیرنده:</span> سرپرست محترم{" "}
-            {letter.companyName ?? "—"}
+            {letter.company_name ?? "—"}
           </p>
           <p>
             <span className="font-black">موضوع:</span> معرفی دانشجو جهت گذراندن
@@ -91,31 +88,31 @@ export default async function LetterPage({
           <p>
             بدین‌وسیله{" "}
             <span className="font-black text-slate-900">
-              {letter.studentName}
+              {letter.student_name}
             </span>{" "}
             به شماره دانشجویی{" "}
             <span className="font-black text-slate-900">
-              {letter.studentNumber ?? "—"}
+              {letter.student_number ?? "—"}
             </span>
-            {letter.studentMajor && (
+            {letter.student_major && (
               <>
                 {" "}
-                ، دانشجوی مقطع {letter.studentGrade ?? "—"} رشته{" "}
+                ، دانشجوی مقطع {letter.student_grade ?? "—"} رشته{" "}
                 <span className="font-black text-slate-900">
-                  {letter.studentMajor}
+                  {letter.student_major}
                 </span>
               </>
             )}{" "}
             از {letter.university}، جهت گذراندن دوره کارآموزی با عنوان{" "}
             <span className="font-black text-slate-900">
-              «{letter.internshipTitle}»
+              «{letter.internship_title}»
             </span>{" "}
-            {letter.startDate && letter.endDate && (
+            {letter.start_date && letter.end_date && (
               <>
-                از تاریخ {faDate(letter.startDate)} لغایت {faDate(letter.endDate)}{" "}
+                از تاریخ {faDate(letter.start_date)} لغایت {faDate(letter.end_date)}{" "}
               </>
             )}
-            به آن {(letter.companyName ?? "").includes("کارخانه") ? "کارخانه" : "شرکت"} محترم
+            به آن {(letter.company_name ?? "").includes("کارخانه") ? "کارخانه" : "شرکت"} محترم
             معرفی می‌گردد.
           </p>
           <p>
@@ -144,7 +141,7 @@ export default async function LetterPage({
         {/* پانوشت */}
         <div className="mt-10 border-t border-dashed border-slate-200 pt-3 text-center text-[11px] text-slate-400">
           این معرفی‌نامه توسط سامانه کارآموزیار به‌صورت سیستمی صادر شده است ·
-          شماره پیگیری: {letter.serialNo}
+          شماره پیگیری: {letter.serial_no}
         </div>
       </div>
     </div>

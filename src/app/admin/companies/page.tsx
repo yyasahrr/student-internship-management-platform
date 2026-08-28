@@ -1,9 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { desc, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { companies, internships } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, apiResults, type Company, type Internship, type NestedPaginated, type Paginated } from "@/lib/server-api";
 import {
   Card,
   EmptyState,
@@ -22,7 +20,7 @@ export default async function AdminCompaniesPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireRole("admin");
+  const session = await requireRole("admin");
   const { status } = await searchParams;
 
   const validStatuses = ["pending", "approved", "rejected"] as const;
@@ -30,27 +28,16 @@ export default async function AdminCompaniesPage({
     ? (status as (typeof validStatuses)[number])
     : null;
 
-  const allCompanies = statusFilter
-    ? await db.query.companies.findMany({
-        where: eq(companies.status, statusFilter),
-        with: { user: true },
-        orderBy: [desc(companies.createdAt)],
-      })
-    : await db.query.companies.findMany({
-        with: { user: true },
-        orderBy: [desc(companies.createdAt)],
-      });
-
-  // تعداد فرصت‌های هر شرکت
-  const counts = await db
-    .select({ companyId: internships.companyId, value: internships.id })
-    .from(internships);
+  const [companyData, internshipData] = await Promise.all([
+    apiFetch<Paginated<Company>>("/admin/companies/", session),
+    apiFetch<NestedPaginated<Internship>>("/internships/"),
+  ]);
+  const companies = apiResults(companyData);
+  const internshipRows = apiResults(internshipData);
+  const allCompanies = statusFilter ? companies.filter((item) => item.status === statusFilter) : companies;
   const internshipCountByCompany = new Map<number, number>();
-  for (const row of counts) {
-    internshipCountByCompany.set(
-      row.companyId,
-      (internshipCountByCompany.get(row.companyId) ?? 0) + 1
-    );
+  for (const internship of internshipRows) {
+    internshipCountByCompany.set(internship.company.id, (internshipCountByCompany.get(internship.company.id) ?? 0) + 1);
   }
 
   return (
@@ -91,12 +78,12 @@ export default async function AdminCompaniesPage({
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
                   <span>🏢 حوزه: {c.industry || "—"}</span>
-                  <span>🔖 مجوز: {c.licenseNumber || "—"}</span>
-                  <span>📞 {c.contactPhone || "—"}</span>
+                  <span>🔖 مجوز: {c.license_number || "—"}</span>
+                  <span>📞 {c.contact_phone || "—"}</span>
                   <span>✉️ {c.user.email}</span>
                   <span>📍 {c.address || "—"}</span>
                   <span>💼 فرصت ثبت‌شده: {faDigits(internshipCountByCompany.get(c.id) ?? 0)}</span>
-                  <span>🗓️ ثبت‌نام: {faDate(c.createdAt)}</span>
+                  <span>🗓️ ثبت‌نام: {faDate(c.created_at)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">

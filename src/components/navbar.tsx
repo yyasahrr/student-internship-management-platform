@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions/auth-actions";
 import { cn } from "@/components/ui";
@@ -31,9 +32,20 @@ export default async function Navbar() {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
         {/* لوگو */}
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 text-xl shadow-sm">
-            🎓
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+          aria-label="صفحه اصلی کارآموزیار دانشگاه آزاد اسلامی"
+        >
+          <span className="flex h-11 w-20 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1 sm:w-24">
+            <Image
+              src="/images/azad-logo.png"
+              alt="لوگوی دانشگاه آزاد اسلامی"
+              width={1254}
+              height={710}
+              priority
+              className="h-full w-full object-contain"
+            />
           </span>
           <span className="leading-tight">
             <span className="block text-base font-black text-slate-900">

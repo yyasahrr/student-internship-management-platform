@@ -1,9 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { desc, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { companies, internships } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Company, type Internship, type Paginated } from "@/lib/server-api";
 import {
   Card,
   EmptyState,
@@ -21,40 +19,20 @@ export const dynamic = "force-dynamic";
 
 export default async function CompanyDashboard() {
   const session = await requireRole("company");
-  const company = await db.query.companies.findFirst({
-    where: eq(companies.userId, session.userId),
-  });
+  const [company, internshipData] = await Promise.all([
+    apiFetch<Company>("/accounts/company/profile/", session),
+    apiFetch<Paginated<Internship>>("/internships/company/", session),
+  ]);
+  const myInternships = internshipData.results;
 
-  if (!company) {
-    return (
-      <EmptyState
-        icon="⚠️"
-        title="پروفایل شرکت یافت نشد"
-        description="حساب شما به هیچ شرکتی متصل نیست."
-      />
-    );
-  }
-
-  const myInternships = await db.query.internships.findMany({
-    where: eq(internships.companyId, company.id),
-    with: { applications: true },
-    orderBy: [desc(internships.createdAt)],
-  });
-
-  const totalApplications = myInternships.reduce(
-    (sum, i) => sum + i.applications.length,
-    0
-  );
-  const pendingApplications = myInternships.reduce(
-    (sum, i) =>
-      sum + i.applications.filter((a) => a.status === "pending").length,
-    0
-  );
-  const acceptedApplications = myInternships.reduce(
-    (sum, i) =>
-      sum + i.applications.filter((a) => a.status === "accepted").length,
-    0
-  );
+  const applicationLists = await Promise.all(myInternships.map((item) =>
+    apiFetch<Paginated<{ status: string }>>(`/internships/company/${item.id}/applications/`, session)
+  ));
+  const applicationsById = new Map(myInternships.map((item, index) => [item.id, applicationLists[index].results]));
+  const allApplications = applicationLists.flatMap((item) => item.results);
+  const totalApplications = allApplications.length;
+  const pendingApplications = allApplications.filter((item) => item.status === "pending").length;
+  const acceptedApplications = allApplications.filter((item) => item.status === "accepted").length;
 
   return (
     <div className="space-y-8">
@@ -151,10 +129,11 @@ export default async function CompanyDashboard() {
         ) : (
           <div className="space-y-3">
             {myInternships.map((i) => {
-              const pendingCount = i.applications.filter(
+              const internshipApplications = applicationsById.get(i.id) ?? [];
+              const pendingCount = internshipApplications.filter(
                 (a) => a.status === "pending"
               ).length;
-              const acceptedCount = i.applications.filter(
+              const acceptedCount = internshipApplications.filter(
                 (a) => a.status === "accepted"
               ).length;
               return (
@@ -167,7 +146,7 @@ export default async function CompanyDashboard() {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
                       <span>📍 {i.city}</span>
                       <span>🎓 {i.major}</span>
-                      <span>🗓️ {faDate(i.startDate)} تا {faDate(i.endDate)}</span>
+                      <span>🗓️ {faDate(i.start_date)} تا {faDate(i.end_date)}</span>
                       <span>
                         ظرفیت: {faDigits(acceptedCount)}/{faDigits(i.capacity)}
                       </span>

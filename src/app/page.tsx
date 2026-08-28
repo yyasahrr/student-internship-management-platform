@@ -1,31 +1,49 @@
 import Link from "next/link";
-import { count, desc, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, companies, internships, students } from "@/db/schema";
+import Image from "next/image";
 import { Card, SectionTitle, StatCard, btnPrimary, btnSecondary, cn } from "@/components/ui";
 import { faDigits, faDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+type Stats = {
+  active_internships: number;
+  approved_companies: number;
+  total_students: number;
+  accepted_applications: number;
+};
+
+type FeaturedInternship = {
+  id: number;
+  title: string;
+  city: string;
+  major: string;
+  capacity: number;
+  required_skills: string[];
+  start_date: string;
+  company: { name: string };
+};
+
+type InternshipResponse = {
+  results: FeaturedInternship[] | { results: FeaturedInternship[] };
+};
+
 export default async function LandingPage() {
-  const [
-    [{ value: activeInternships }],
-    [{ value: approvedCompanies }],
-    [{ value: totalStudents }],
-    [{ value: acceptedApplications }],
-    featured,
-  ] = await Promise.all([
-    db.select({ value: count() }).from(internships).where(eq(internships.status, "active")),
-    db.select({ value: count() }).from(companies).where(eq(companies.status, "approved")),
-    db.select({ value: count() }).from(students),
-    db.select({ value: count() }).from(applications).where(eq(applications.status, "accepted")),
-    db.query.internships.findMany({
-      where: eq(internships.status, "active"),
-      with: { company: true },
-      orderBy: [desc(internships.createdAt)],
-      limit: 3,
-    }),
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const [statsResponse, internshipsResponse] = await Promise.all([
+    fetch(`${apiUrl}/internships/stats/`, { cache: "no-store" }),
+    fetch(`${apiUrl}/internships/`, { cache: "no-store" }),
   ]);
+
+  if (!statsResponse.ok || !internshipsResponse.ok) {
+    throw new Error("ارتباط با سرویس بک‌اند برقرار نشد.");
+  }
+
+  const stats = (await statsResponse.json()) as Stats;
+  const internshipData = (await internshipsResponse.json()) as InternshipResponse;
+  const internshipResults = Array.isArray(internshipData.results)
+    ? internshipData.results
+    : internshipData.results.results;
+  const featured = internshipResults.slice(0, 3);
 
   return (
     <div className="-mx-4 space-y-16">
@@ -59,14 +77,17 @@ export default async function LandingPage() {
           </div>
           <div className="relative">
             <div className="absolute -inset-4 rounded-[2rem] bg-white/10 blur-2xl" />
-            <img
-              src="https://images.pexels.com/photos/8199634/pexels-photo-8199634.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200"
-              alt="دانشجویان در حال همکاری و کارآموزی"
-              className="relative aspect-[16/10] w-full rounded-3xl object-cover shadow-2xl ring-4 ring-white/20"
+            <Image
+              src="/images/azad-logo.png"
+              alt="لوگوی دانشگاه آزاد اسلامی"
+              width={1254}
+              height={710}
+              priority
+              className="relative aspect-[16/10] w-full rounded-3xl bg-white object-contain p-6 shadow-2xl ring-4 ring-white/20 sm:p-10"
             />
             <div className="absolute -bottom-5 -right-3 rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-xl md:-right-6">
               <div className="text-lg font-black text-teal-700">
-                {faDigits(activeInternships)}+
+                {faDigits(stats.active_internships)}+
               </div>
               <div className="text-xs font-semibold text-slate-500">
                 فرصت کارآموزی فعال
@@ -78,10 +99,10 @@ export default async function LandingPage() {
 
       {/* --------------------------- آمار سامانه --------------------------- */}
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon="💼" label="فرصت کارآموزی فعال" value={faDigits(activeInternships)} />
-        <StatCard icon="🏭" label="شرکت تأییدشده" value={faDigits(approvedCompanies)} accent="bg-sky-50 text-sky-700" />
-        <StatCard icon="🎓" label="دانشجوی ثبت‌نامی" value={faDigits(totalStudents)} accent="bg-violet-50 text-violet-700" />
-        <StatCard icon="✅" label="پذیرش موفق" value={faDigits(acceptedApplications)} accent="bg-amber-50 text-amber-700" />
+        <StatCard icon="💼" label="فرصت کارآموزی فعال" value={faDigits(stats.active_internships)} />
+        <StatCard icon="🏭" label="شرکت تأییدشده" value={faDigits(stats.approved_companies)} accent="bg-sky-50 text-sky-700" />
+        <StatCard icon="🎓" label="دانشجوی ثبت‌نامی" value={faDigits(stats.total_students)} accent="bg-violet-50 text-violet-700" />
+        <StatCard icon="✅" label="پذیرش موفق" value={faDigits(stats.accepted_applications)} accent="bg-amber-50 text-amber-700" />
       </section>
 
       {/* ------------------------- فرآیند کار سامانه ------------------------- */}
@@ -198,7 +219,7 @@ export default async function LandingPage() {
                   {i.major} · ظرفیت {faDigits(i.capacity)} نفر
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {(i.requiredSkills ?? []).slice(0, 3).map((s) => (
+                  {(i.required_skills ?? []).slice(0, 3).map((s) => (
                     <span
                       key={s}
                       className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
@@ -208,7 +229,7 @@ export default async function LandingPage() {
                   ))}
                 </div>
                 <div className="mt-4 border-t border-slate-100 pt-3 text-[11px] font-medium text-slate-400">
-                  شروع: {faDate(i.startDate)}
+                  شروع: {faDate(i.start_date)}
                 </div>
               </Card>
             </Link>

@@ -1,10 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { companies } from "@/db/schema";
 import { createInternship } from "@/lib/actions/company-actions";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Company } from "@/lib/server-api";
 import { Card, Field, SectionTitle, btnPrimary, inputCls } from "@/components/ui";
 
 export const metadata: Metadata = { title: "ثبت فرصت جدید | کارآموزیار" };
@@ -40,11 +38,9 @@ const cityOptions = [
 
 export default async function NewInternshipPage() {
   const session = await requireRole("company");
-  const company = await db.query.companies.findFirst({
-    where: eq(companies.userId, session.userId),
-  });
+  const company = await apiFetch<Company>("/accounts/company/profile/", session);
 
-  if (!company || company.status !== "approved") {
+  if (!company.is_approved) {
     return (
       <div className="mx-auto max-w-xl py-10 text-center">
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8">

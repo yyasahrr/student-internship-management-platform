@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, internships, students } from "@/db/schema";
 import { applyToInternship } from "@/lib/actions/student-actions";
 import { getSession } from "@/lib/auth";
 import { Card, EmptyState, StatusBadge, btnPrimary, btnSecondary, inputCls } from "@/components/ui";
@@ -11,6 +8,15 @@ import { faDate, faDigits } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "جزئیات فرصت | کارآموزیار" };
 export const dynamic = "force-dynamic";
+
+type Internship = {
+  id: number; title: string; description: string; capacity: number;
+  required_skills: string[]; city: string; major: string; start_date: string;
+  end_date: string; conditions: string; status: string; accepted_count: number;
+  remaining_capacity: number; company: { name: string; industry: string; address: string;
+    contact_phone: string; website: string; description: string };
+};
+type Application = { id: number; status: string; internship: { id: number } };
 
 export default async function InternshipDetailPage({
   params,
@@ -21,33 +27,25 @@ export default async function InternshipDetailPage({
   const internshipId = Number(id);
   if (!Number.isFinite(internshipId)) notFound();
 
-  const internship = await db.query.internships.findFirst({
-    where: eq(internships.id, internshipId),
-    with: {
-      company: true,
-      applications: { where: eq(applications.status, "accepted") },
-    },
-  });
-  if (!internship) notFound();
-
   const session = await getSession();
-  let myApplication = null;
-  if (session?.role === "student") {
-    const student = await db.query.students.findFirst({
-      where: eq(students.userId, session.userId),
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const internshipResponse = await fetch(`${apiUrl}/internships/${internshipId}/`, { cache: "no-store" });
+  if (internshipResponse.status === 404) notFound();
+  if (!internshipResponse.ok) throw new Error("دریافت جزئیات فرصت از بک‌اند ناموفق بود.");
+  const internship = (await internshipResponse.json()) as Internship;
+
+  let myApplication: Application | undefined;
+  if (session?.role === "student" && session.accessToken) {
+    const applicationsResponse = await fetch(`${apiUrl}/internships/student/applications/`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` }, cache: "no-store",
     });
-    if (student) {
-      myApplication = await db.query.applications.findFirst({
-        where: (t, { eq: e, and: a }) =>
-          a(
-            e(t.internshipId, internshipId),
-            e(t.studentId, student.id)
-          ),
-      });
+    if (applicationsResponse.ok) {
+      const data = (await applicationsResponse.json()) as { results: Application[] };
+      myApplication = data.results.find((item) => item.internship.id === internshipId);
     }
   }
 
-  const remaining = Math.max(0, internship.capacity - internship.applications.length);
+  const remaining = internship.remaining_capacity;
   const applyAction = applyToInternship.bind(null, internshipId);
 
   return (
@@ -77,8 +75,8 @@ export default async function InternshipDetailPage({
               {[
                 { icon: "📍", label: "شهر", value: internship.city ?? "—" },
                 { icon: "🎓", label: "رشته مرتبط", value: internship.major ?? "—" },
-                { icon: "🗓️", label: "شروع", value: faDate(internship.startDate) },
-                { icon: "🏁", label: "پایان", value: faDate(internship.endDate) },
+                { icon: "🗓️", label: "شروع", value: faDate(internship.start_date) },
+                { icon: "🏁", label: "پایان", value: faDate(internship.end_date) },
               ].map((f) => (
                 <div key={f.label} className="rounded-xl bg-slate-50 p-3">
                   <div className="text-lg">{f.icon}</div>
@@ -103,7 +101,7 @@ export default async function InternshipDetailPage({
               مهارت‌های مورد نیاز
             </h2>
             <div className="mb-5 flex flex-wrap gap-2">
-              {(internship.requiredSkills ?? []).map((s) => (
+              {(internship.required_skills ?? []).map((s) => (
                 <span
                   key={s}
                   className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800"
@@ -111,7 +109,7 @@ export default async function InternshipDetailPage({
                   {s}
                 </span>
               ))}
-              {(internship.requiredSkills ?? []).length === 0 && (
+              {(internship.required_skills ?? []).length === 0 && (
                 <span className="text-sm text-slate-400">مهارت خاصی اعلام نشده</span>
               )}
             </div>
@@ -206,7 +204,7 @@ export default async function InternshipDetailPage({
             <dl className="space-y-3 text-sm">
               {[
                 ["📍 آدرس", internship.company.address],
-                ["📞 تماس", internship.company.contactPhone],
+                ["📞 تماس", internship.company.contact_phone],
                 ["🌐 وب‌سایت", internship.company.website],
                 ["🏢 حوزه فعالیت", internship.company.industry],
               ].map(([label, value]) => (
@@ -240,12 +238,12 @@ export default async function InternshipDetailPage({
               <div
                 className="h-full rounded-full bg-gradient-to-l from-teal-500 to-teal-700"
                 style={{
-                  width: `${(internship.applications.length / Math.max(1, internship.capacity)) * 100}%`,
+                  width: `${(internship.accepted_count / Math.max(1, internship.capacity)) * 100}%`,
                 }}
               />
             </div>
             <div className="mt-2 text-xs text-slate-400">
-              {faDigits(internship.applications.length)} نفر پذیرفته شده‌اند
+              {faDigits(internship.accepted_count)} نفر پذیرفته شده‌اند
             </div>
           </Card>
 

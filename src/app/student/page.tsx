@@ -1,8 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { and, count, desc, eq, ne } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, internships, students } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
 import {
   Card,
@@ -19,52 +16,53 @@ import { faDate, faDigits } from "@/lib/utils";
 export const metadata: Metadata = { title: "داشبورد دانشجو | کارآموزیار" };
 export const dynamic = "force-dynamic";
 
+type Internship = {
+  id: number; title: string; city: string; major: string; capacity: number;
+  start_date: string; end_date: string; company: { name: string };
+};
+type Application = { id: number; status: string; internship: Internship };
+type StudentProfile = {
+  university: string; major: string; student_number: string; profile_complete: boolean;
+};
+type Paginated<T> = { results: T[] | { results: T[] } };
+
+function resultsOf<T>(data: Paginated<T>): T[] {
+  return Array.isArray(data.results) ? data.results : data.results.results;
+}
+
 export default async function StudentDashboard() {
   const session = await requireRole("student");
-  const student = await db.query.students.findFirst({
-    where: eq(students.userId, session.userId),
-  });
-  if (!student) {
+  if (!session.accessToken) {
     return (
       <EmptyState
-        icon="⚠️"
-        title="پروفایل دانشجویی یافت نشد"
-        description="حساب شما پروفایل دانشجویی ندارد."
+        icon="🔐"
+        title="نشست شما منقضی شده است"
+        description="لطفاً یک‌بار از حساب خارج شوید و دوباره وارد شوید."
       />
     );
   }
 
-  const profileComplete =
-    Boolean(student.university && student.major && student.studentNumber);
-
-  const [myApplications, stats, recommendations] = await Promise.all([
-    db.query.applications.findMany({
-      where: eq(applications.studentId, student.id),
-      with: {
-        internship: { with: { company: true, applications: { where: eq(applications.status, "accepted") } } },
-      },
-      orderBy: [desc(applications.createdAt)],
-    }),
-    db
-      .select({ status: applications.status, value: count() })
-      .from(applications)
-      .where(eq(applications.studentId, student.id))
-      .groupBy(applications.status),
-    db.query.internships.findMany({
-      where: and(
-        eq(internships.status, "active"),
-        student.major ? eq(internships.major, student.major) : undefined,
-        ne(internships.companyId, -1)
-      ),
-      with: { company: true },
-      orderBy: [desc(internships.createdAt)],
-      limit: 4,
-    }),
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const headers = { Authorization: `Bearer ${session.accessToken}` };
+  const [profileResponse, applicationsResponse, internshipsResponse] = await Promise.all([
+    fetch(`${apiUrl}/accounts/student/profile/`, { headers, cache: "no-store" }),
+    fetch(`${apiUrl}/internships/student/applications/`, { headers, cache: "no-store" }),
+    fetch(`${apiUrl}/internships/`, { cache: "no-store" }),
   ]);
+  if (!profileResponse.ok || !applicationsResponse.ok || !internshipsResponse.ok) {
+    throw new Error("دریافت اطلاعات داشبورد از بک‌اند ناموفق بود.");
+  }
+  const student = (await profileResponse.json()) as StudentProfile;
+  const myApplications = resultsOf((await applicationsResponse.json()) as Paginated<Application>);
+  const allInternships = resultsOf((await internshipsResponse.json()) as Paginated<Internship>);
+  const recommendations = allInternships
+    .filter((item) => !student.major || item.major === student.major)
+    .slice(0, 4);
+  const profileComplete = student.profile_complete;
 
-  const appliedIds = new Set(myApplications.map((a) => a.internshipId));
+  const appliedIds = new Set(myApplications.map((a) => a.internship.id));
   const counts: Record<string, number> = { pending: 0, accepted: 0, rejected: 0 };
-  for (const row of stats) counts[row.status] = row.value;
+  for (const application of myApplications) counts[application.status]++;
 
   return (
     <div className="space-y-8">
@@ -142,9 +140,9 @@ export default async function StudentDashboard() {
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
                     <span>🏭 {app.internship.company.name}</span>
                     <span>📍 {app.internship.city}</span>
-                    <span>🗓️ {faDate(app.internship.startDate)} تا {faDate(app.internship.endDate)}</span>
+                    <span>🗓️ {faDate(app.internship.start_date)} تا {faDate(app.internship.end_date)}</span>
                   </div>
-                  {app.status === "accepted" && app.internship.applications.length >= 0 && (
+                  {app.status === "accepted" && (
                     <div className="mt-2 text-xs text-slate-400">
                       ظرفیت دوره: {faDigits(app.internship.capacity)} نفر
                     </div>
@@ -195,7 +193,7 @@ export default async function StudentDashboard() {
                   </div>
                   <h3 className="mb-1 text-sm font-extrabold text-slate-900">{i.title}</h3>
                   <div className="text-[11px] text-slate-400">
-                    ظرفیت {faDigits(i.capacity)} نفر · شروع {faDate(i.startDate)}
+                    ظرفیت {faDigits(i.capacity)} نفر · شروع {faDate(i.start_date)}
                   </div>
                 </Card>
               </Link>

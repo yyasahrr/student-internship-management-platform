@@ -7,12 +7,19 @@ export type Session = {
   role: Role;
   name: string;
   email: string;
+  accessToken?: string;
+  refreshToken?: string;
 };
 
 export const SESSION_COOKIE = "karamoozyar_session";
 
+const authSecret = process.env.AUTH_SECRET;
+if (!authSecret && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET is required in production");
+}
+
 const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? "dev-secret-change-me-in-production"
+  authSecret ?? "local-development-secret-change-me"
 );
 
 export async function signSessionToken(session: Session): Promise<string> {
@@ -39,6 +46,10 @@ export async function verifySessionToken(token: string): Promise<Session | null>
       role: payload.role as Role,
       name: payload.name,
       email: payload.email,
+      accessToken:
+        typeof payload.accessToken === "string" ? payload.accessToken : undefined,
+      refreshToken:
+        typeof payload.refreshToken === "string" ? payload.refreshToken : undefined,
     };
   } catch {
     return null;

@@ -6,3 +6,11 @@ backend/staticfiles/
 backend/.env
 __pycache__/
 *.pyc
+node_modules
+.next/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+backend/static/

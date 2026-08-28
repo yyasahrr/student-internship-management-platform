@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | کارآموزیار{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'admin/css/karamoozyar.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <div class="brand-wrap">
+    <span class="brand-icon">🎓</span>
+    <div>
+      <h1 id="site-name"><a href="{% url 'admin:index' %}">کارآموزیار</a></h1>
+      <span class="brand-subtitle">مدیریت ارتباط دانشجو و صنعت</span>
+    </div>
+  </div>
+{% endblock %}
+
+{% block nav-global %}
+  <a class="site-link" href="/" target="_blank">مشاهده سامانه ↗</a>
+{% endblock %}

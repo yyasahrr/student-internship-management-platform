@@ -80,8 +80,8 @@ class InternshipListView(generics.ListAPIView):
             return self.get_paginated_response({
                 "results": serializer.data,
                 "filters": {
-                    "cities": sorted([c for c in cities if c]),
-                    "majors": sorted([m for m in majors if m]),
+                    "cities": sorted(set(c for c in cities if c)),
+                    "majors": sorted(set(m for m in majors if m)),
                 },
             })
 
@@ -89,8 +89,8 @@ class InternshipListView(generics.ListAPIView):
         return Response({
             "results": serializer.data,
             "filters": {
-                "cities": sorted([c for c in cities if c]),
-                "majors": sorted([m for m in majors if m]),
+                "cities": sorted(set(c for c in cities if c)),
+                "majors": sorted(set(m for m in majors if m)),
             },
         })
 

@@ -1,13 +1,48 @@
 "use server";
 
-import { compare, hash } from "bcryptjs";
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { db } from "@/db";
-import { companies, students, users } from "@/db/schema";
 import { createSession, dashboardPathForRole, destroySession } from "@/lib/auth";
+import type { Role } from "@/lib/auth";
 
 export type AuthFormState = { error?: string; success?: string };
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+type TokenResponse = { access: string; refresh: string };
+type ApiUser = {
+  id: number;
+  email: string;
+  full_name: string;
+  role: Role;
+};
+
+async function apiError(response: Response): Promise<string> {
+  const data = (await response.json().catch(() => null)) as
+    | Record<string, unknown>
+    | null;
+  if (!data) return "ارتباط با سرویس احراز هویت ناموفق بود.";
+  if (typeof data.detail === "string") return data.detail;
+  const first = Object.values(data).flat().find((value) => typeof value === "string");
+  return typeof first === "string" ? first : "اطلاعات واردشده معتبر نیست.";
+}
+
+async function authenticate(email: string, password: string) {
+  const tokenResponse = await fetch(`${API_URL}/auth/login/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+    cache: "no-store",
+  });
+  if (!tokenResponse.ok) throw new Error(await apiError(tokenResponse));
+  const tokens = (await tokenResponse.json()) as TokenResponse;
+
+  const meResponse = await fetch(`${API_URL}/auth/me/`, {
+    headers: { Authorization: `Bearer ${tokens.access}` },
+    cache: "no-store",
+  });
+  if (!meResponse.ok) throw new Error(await apiError(meResponse));
+  return { tokens, user: (await meResponse.json()) as ApiUser };
+}
 
 /* ------------------------------ ورود ------------------------------ */
 
@@ -24,19 +59,25 @@ export async function loginAction(
     return { error: "ایمیل و رمز عبور را وارد کنید." };
   }
 
-  const user = await db.query.users.findFirst({ where: eq(users.email, email) });
-  if (!user || !(await compare(password, user.passwordHash))) {
-    return { error: "ایمیل یا رمز عبور نادرست است." };
+  let auth;
+  try {
+    auth = await authenticate(email, password);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "ایمیل یا رمز عبور نادرست است.",
+    };
   }
 
   await createSession({
-    userId: user.id,
-    role: user.role,
-    name: user.fullName,
-    email: user.email,
+    userId: auth.user.id,
+    role: auth.user.role,
+    name: auth.user.full_name,
+    email: auth.user.email,
+    accessToken: auth.tokens.access,
+    refreshToken: auth.tokens.refresh,
   });
 
-  redirect(dashboardPathForRole(user.role));
+  redirect(dashboardPathForRole(auth.user.role));
 }
 
 /* ---------------------------- ثبت‌نام ------------------------------ */
@@ -64,55 +105,62 @@ export async function registerAction(
     return { error: "رمز عبور باید حداقل ۶ کاراکتر باشد." };
   }
 
-  const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
-  if (existing) {
-    return { error: "این ایمیل قبلاً ثبت شده است. وارد شوید." };
+  const registerResponse = await fetch(`${API_URL}/auth/register/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      username: email,
+      full_name: fullName,
+      password,
+      password_confirm: password,
+      role,
+      phone,
+      city,
+    }),
+    cache: "no-store",
+  });
+  if (!registerResponse.ok) return { error: await apiError(registerResponse) };
+
+  let auth;
+  try {
+    auth = await authenticate(email, password);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "ورود پس از ثبت‌نام ناموفق بود." };
   }
 
-  const passwordHash = await hash(password, 10);
-
-  const [user] = await db
-    .insert(users)
-    .values({ fullName, email, passwordHash, role, phone, city })
-    .returning();
-
-  if (role === "student") {
-    await db
-      .insert(students)
-      .values({
-        userId: user.id,
+  const profilePath = role === "student" ? "/accounts/student/profile/" : "/accounts/company/profile/";
+  const profileBody = role === "student"
+    ? {
         university: String(formData.get("university") ?? "").trim(),
         major: String(formData.get("major") ?? "").trim(),
         grade: String(formData.get("grade") ?? "").trim(),
-        studentNumber: String(formData.get("studentNumber") ?? "").trim(),
-      })
-      .returning();
-  } else {
-    const companyName = String(formData.get("companyName") ?? "").trim();
-    if (!companyName) {
-      return { error: "نام شرکت الزامی است." };
-    }
-    await db
-      .insert(companies)
-      .values({
-        userId: user.id,
-        name: companyName,
+        student_number: String(formData.get("studentNumber") ?? "").trim(),
+      }
+    : {
+        name: String(formData.get("companyName") ?? fullName).trim(),
         industry: String(formData.get("industry") ?? "").trim(),
-        licenseNumber: String(formData.get("licenseNumber") ?? "").trim(),
-        contactPhone: phone,
+        license_number: String(formData.get("licenseNumber") ?? "").trim(),
         address: String(formData.get("address") ?? "").trim(),
-      })
-      .returning();
-  }
-
-  await createSession({
-    userId: user.id,
-    role: user.role,
-    name: user.fullName,
-    email: user.email,
+        contact_phone: phone,
+      };
+  await fetch(`${API_URL}${profilePath}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.tokens.access}` },
+    body: JSON.stringify(profileBody),
+    cache: "no-store",
   });
 
-  redirect(dashboardPathForRole(user.role));
+  await createSession({
+    userId: auth.user.id,
+    role: auth.user.role,
+    name: auth.user.full_name,
+    email: auth.user.email,
+    accessToken: auth.tokens.access,
+    refreshToken: auth.tokens.refresh,
+  });
+
+  redirect(dashboardPathForRole(auth.user.role));
 }
 
 /* ------------------------------ خروج ------------------------------ */

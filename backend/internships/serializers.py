@@ -115,7 +115,7 @@ class LetterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Letter
         fields = [
-            "id", "serial_no", "university", "student_name", "student_number",
+            "id", "application", "serial_no", "university", "student_name", "student_number",
             "student_major", "student_grade", "company_name", "internship_title",
             "start_date", "end_date", "issued_at",
         ]

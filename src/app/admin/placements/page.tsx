@@ -1,9 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { desc, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, letters } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Application, type Letter, type Paginated } from "@/lib/server-api";
 import {
   Card,
   EmptyState,
@@ -17,24 +15,14 @@ export const metadata: Metadata = { title: "پذیرش‌ها و نامه‌ها
 export const dynamic = "force-dynamic";
 
 export default async function AdminPlacementsPage() {
-  await requireRole("admin");
+  const session = await requireRole("admin");
 
-  const [acceptedApplications, issuedLetters] = await Promise.all([
-    db.query.applications.findMany({
-      where: eq(applications.status, "accepted"),
-      with: {
-        student: { with: { user: true } },
-        internship: { with: { company: true } },
-      },
-      orderBy: [desc(applications.createdAt)],
-    }),
-    db.query.letters.findMany({
-      with: { student: { with: { user: true } }, internship: { with: { company: true } } },
-      orderBy: [desc(letters.issuedAt)],
-    }),
+  const [{ results: acceptedApplications }, { results: issuedLetters }] = await Promise.all([
+    apiFetch<Paginated<Application>>("/internships/admin/placements/", session),
+    apiFetch<Paginated<Letter>>("/internships/admin/letters/", session),
   ]);
 
-  const letterByApplication = new Map(issuedLetters.map((l) => [l.applicationId, l]));
+  const letterByApplication = new Map(issuedLetters.map((l) => [l.application, l]));
 
   return (
     <div className="space-y-10">
@@ -59,20 +47,20 @@ export default async function AdminPlacementsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="text-base font-extrabold text-slate-900">
-                        {app.student.user.fullName}
+                        {app.student.user.full_name}
                       </span>
                       <StatusBadge status="accepted" />
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
                       <span>🎓 {app.student.major || "—"} · {app.student.grade || "—"}</span>
                       <span>🏫 {app.student.university || "—"}</span>
-                      <span>🔢 شماره دانشجویی: {app.student.studentNumber || "—"}</span>
+                      <span>🔢 شماره دانشجویی: {app.student.student_number || "—"}</span>
                       <span className="font-bold text-teal-700">
                         🏭 {app.internship.company.name}
                       </span>
                       <span>💼 {app.internship.title}</span>
                       <span>
-                        🗓️ {faDate(app.internship.startDate)} تا {faDate(app.internship.endDate)}
+                        🗓️ {faDate(app.internship.start_date)} تا {faDate(app.internship.end_date)}
                       </span>
                     </div>
                   </div>
@@ -119,16 +107,16 @@ export default async function AdminPlacementsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="text-sm font-extrabold text-slate-900">
-                      {l.student.user.fullName}
+                      {l.student_name}
                     </span>
                     <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-black text-sky-700">
-                      شماره: {l.serialNo}
+                      شماره: {l.serial_no}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
-                    <span>🏭 {l.companyName}</span>
-                    <span>💼 {l.internshipTitle}</span>
-                    <span>🗓️ صادرشده: {faDate(l.issuedAt)}</span>
+                    <span>🏭 {l.company_name}</span>
+                    <span>💼 {l.internship_title}</span>
+                    <span>🗓️ صادرشده: {faDate(l.issued_at)}</span>
                   </div>
                 </div>
                 <Link

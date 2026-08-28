@@ -30,11 +30,6 @@ if command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; t
     echo -e "   API:  ${CYAN}http://localhost:8000/api/${NC}"
     echo -e "   Docs: ${CYAN}http://localhost:8000/api/ (JSON)${NC}"
     echo ""
-    echo -e "${YELLOW}📋 Test Accounts:${NC}"
-    echo "   Admin:    admin@university.ac.ir / admin1234"
-    echo "   Student:  ali@student.ac.ir / student1234"
-    echo "   Company:  hr@digikala.com / company1234"
-    echo ""
     echo -e "   Stop:     ${CYAN}docker compose down${NC}"
     echo -e "   Logs:     ${CYAN}docker compose logs -f api${NC}"
     exit 0
@@ -84,19 +79,10 @@ fi
 echo -e "Running migrations..."
 python manage.py migrate --noinput
 
-echo -e "Loading seed data..."
-python manage.py seed 2>/dev/null || echo "  (seed data already loaded)"
-
 echo ""
 echo -e "${GREEN}✅ Starting Django development server...${NC}"
 echo ""
 echo -e "   API:  ${CYAN}http://localhost:8000/api/${NC}"
 echo -e "   Admin Panel: ${CYAN}http://localhost:8000/django-admin/${NC}"
 echo ""
-echo -e "${YELLOW}📋 Test Accounts:${NC}"
-echo "   Admin:    admin@university.ac.ir / admin1234"
-echo "   Student:  ali@student.ac.ir / student1234"
-echo "   Company:  hr@digikala.com / company1234"
-echo ""
-
 python manage.py runserver 0.0.0.0:8000

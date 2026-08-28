@@ -86,7 +86,7 @@ echo -e "${CYAN}Setting up database...${NC}"
 
 DB_NAME="karamoozyar"
 DB_USER="karamoozyar"
-DB_PASS="karamoozyar123"
+DB_PASS="${POSTGRES_PASSWORD:-$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')}"
 
 # Check if database exists
 if sudo -u postgres psql -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
@@ -155,12 +155,7 @@ python manage.py migrate --noinput
 echo -e "${GREEN}✓ Migrations complete${NC}"
 echo ""
 
-# ──── Step 6: Seed Data ────
-echo -e "${CYAN}Loading sample data...${NC}"
-python manage.py seed 2>/dev/null || echo -e "${YELLOW}  (seed data already loaded)${NC}"
-echo ""
-
-# ──── Step 7: Start Server ────
+# ──── Step 6: Start Server ────
 echo -e "${GREEN}"
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║              ✅ Setup Complete!                      ║"
@@ -168,11 +163,6 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 echo -e "   API:           ${CYAN}http://localhost:8000/api/${NC}"
 echo -e "   Django Admin:  ${CYAN}http://localhost:8000/django-admin/${NC}"
-echo ""
-echo -e "${YELLOW}📋 Test Accounts:${NC}"
-echo "   Admin:    admin@university.ac.ir / admin1234"
-echo "   Student:  ali@student.ac.ir / student1234"
-echo "   Company:  hr@digikala.com / company1234"
 echo ""
 echo -e "Starting Django development server..."
 echo -e "${CYAN}Press Ctrl+C to stop${NC}"

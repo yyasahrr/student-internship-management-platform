@@ -11,7 +11,7 @@ function dashboardForRole(role: string) {
   return role === "admin" ? "/admin" : role === "company" ? "/company" : "/student";
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await verifySessionToken(token) : null;

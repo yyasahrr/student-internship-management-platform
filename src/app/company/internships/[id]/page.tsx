@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { applications, companies, internships } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
+import { apiFetch, type Application, type Internship, type Paginated } from "@/lib/server-api";
 import { reviewApplication } from "@/lib/actions/company-actions";
 import {
   Card,
@@ -24,27 +22,20 @@ export default async function InternshipApplicantsPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await requireRole("company");
-  const company = await db.query.companies.findFirst({
-    where: eq(companies.userId, session.userId),
-  });
-  if (!company) notFound();
-
   const { id } = await params;
   const internshipId = Number(id);
   if (!Number.isFinite(internshipId)) notFound();
 
-  const internship = await db.query.internships.findFirst({
-    where: eq(internships.id, internshipId),
-    with: {
-      applications: {
-        with: { student: { with: { user: true } } },
-      },
-    },
-  });
+  let internship: Internship;
+  let internshipApplications: Application[];
+  try {
+    [internship, { results: internshipApplications }] = await Promise.all([
+      apiFetch<Internship>(`/internships/company/${internshipId}/`, session),
+      apiFetch<Paginated<Application>>(`/internships/company/${internshipId}/applications/`, session),
+    ]);
+  } catch { notFound(); }
 
-  if (!internship || internship.companyId !== company.id) notFound();
-
-  const acceptedCount = internship.applications.filter(
+  const acceptedCount = internshipApplications.filter(
     (a) => a.status === "accepted"
   ).length;
   const capacityFull = acceptedCount >= internship.capacity;
@@ -60,7 +51,7 @@ export default async function InternshipApplicantsPage({
         </Link>
         <SectionTitle
           title={internship.title}
-          subtitle={`📍 ${internship.city} · 🎓 ${internship.major} · 🗓️ ${faDate(internship.startDate)} تا ${faDate(internship.endDate)}`}
+          subtitle={`📍 ${internship.city} · 🎓 ${internship.major} · 🗓️ ${faDate(internship.start_date)} تا ${faDate(internship.end_date)}`}
           action={<StatusBadge status={internship.status} />}
         />
       </div>
@@ -89,11 +80,11 @@ export default async function InternshipApplicantsPage({
 
       {/* فهرست متقاضیان */}
       <SectionTitle
-        title={`متقاضیان (${faDigits(internship.applications.length)} نفر)`}
+        title={`متقاضیان (${faDigits(internshipApplications.length)} نفر)`}
         subtitle="رزومه، مهارت‌ها و متن درخواست هر متقاضی را بررسی و تصمیم بگیرید"
       />
 
-      {internship.applications.length === 0 ? (
+      {internshipApplications.length === 0 ? (
         <EmptyState
           icon="👥"
           title="هنوز متقاضی‌ای برای این فرصت ثبت نشده است"
@@ -101,18 +92,18 @@ export default async function InternshipApplicantsPage({
         />
       ) : (
         <div className="space-y-4">
-          {internship.applications.map((app) => (
+          {internshipApplications.map((app) => (
             <Card key={app.id} className="p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 {/* اطلاعات دانشجو */}
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 text-lg font-black text-white">
-                      {app.student.user.fullName.charAt(0)}
+                      {app.student.user.full_name.charAt(0)}
                     </div>
                     <div>
                       <div className="font-extrabold text-slate-900">
-                        {app.student.user.fullName}
+                        {app.student.user.full_name}
                       </div>
                       <div className="text-xs font-medium text-slate-400">
                         {app.student.university || "دانشگاه ثبت نشده"} ·{" "}
@@ -123,7 +114,7 @@ export default async function InternshipApplicantsPage({
                   </div>
 
                   <div className="mb-3 grid gap-1.5 text-xs font-medium text-slate-500 sm:grid-cols-3">
-                    <span>🎓 شماره دانشجویی: {app.student.studentNumber || "—"}</span>
+                    <span>🎓 شماره دانشجویی: {app.student.student_number || "—"}</span>
                     <span>📊 معدل: {app.student.gpa || "—"}</span>
                     <span>📞 تماس: {app.student.user.phone || "—"}</span>
                   </div>
@@ -141,18 +132,18 @@ export default async function InternshipApplicantsPage({
                     </div>
                   )}
 
-                  {app.coverLetter && (
+                  {app.cover_letter && (
                     <div className="mb-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">
                       <span className="mb-1 block text-[11px] font-black text-slate-400">
                         متن درخواست:
                       </span>
-                      {app.coverLetter}
+                      {app.cover_letter}
                     </div>
                   )}
 
-                  {app.student.resumeUrl && (
+                  {app.student.resume && (
                     <Link
-                      href={app.student.resumeUrl}
+                      href={app.student.resume}
                       target="_blank"
                       className="text-xs font-bold text-violet-700 hover:underline"
                     >
@@ -194,7 +185,7 @@ export default async function InternshipApplicantsPage({
         </div>
       )}
 
-      {internship.applications.length > 0 && (
+      {internshipApplications.length > 0 && (
         <Link href="/company" className={`${btnPrimary} mt-4`}>
           بازگشت به داشبورد
         </Link>

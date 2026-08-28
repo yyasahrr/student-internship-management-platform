@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { students } from "@/db/schema";
+import { redirect } from "next/navigation";
 import { updateStudentProfile } from "@/lib/actions/student-actions";
 import { requireRole } from "@/lib/auth";
 import { Card, Field, SectionTitle, btnPrimary, inputCls } from "@/components/ui";
@@ -9,13 +7,31 @@ import { Card, Field, SectionTitle, btnPrimary, inputCls } from "@/components/ui
 export const metadata: Metadata = { title: "پروفایل و رزومه | کارآموزیار" };
 export const dynamic = "force-dynamic";
 
+type StudentProfile = {
+  university: string;
+  major: string;
+  grade: string;
+  student_number: string;
+  gpa: string | null;
+  skills: string[];
+  interests: string | null;
+  about: string | null;
+  resume: string | null;
+};
+
 export default async function StudentProfilePage() {
   const session = await requireRole("student");
-  const student = await db.query.students.findFirst({
-    where: eq(students.userId, session.userId),
-  });
+  if (!session.accessToken) redirect("/login");
 
-  const s = student ?? { skills: [] as string[] };
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const response = await fetch(`${apiUrl}/accounts/student/profile/`, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("دریافت پروفایل دانشجو از بک‌اند ناموفق بود.");
+  }
+  const student = (await response.json()) as StudentProfile;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -31,7 +47,7 @@ export default async function StudentProfilePage() {
               <input
                 name="university"
                 required
-                defaultValue={student?.university ?? ""}
+                defaultValue={student.university ?? ""}
                 placeholder="مثلاً: دانشگاه صنعتی شریف"
                 className={inputCls}
               />
@@ -40,13 +56,13 @@ export default async function StudentProfilePage() {
               <input
                 name="major"
                 required
-                defaultValue={student?.major ?? ""}
+                defaultValue={student.major ?? ""}
                 placeholder="مثلاً: مهندسی کامپیوتر"
                 className={inputCls}
               />
             </Field>
             <Field label="مقطع تحصیلی">
-              <select name="grade" defaultValue={student?.grade ?? "کارشناسی"} className={inputCls}>
+              <select name="grade" defaultValue={student.grade ?? "کارشناسی"} className={inputCls}>
                 <option value="کارشناسی">کارشناسی</option>
                 <option value="کارشناسی ارشد">کارشناسی ارشد</option>
                 <option value="دکتری">دکتری</option>
@@ -57,7 +73,7 @@ export default async function StudentProfilePage() {
                 name="studentNumber"
                 dir="ltr"
                 required
-                defaultValue={student?.studentNumber ?? ""}
+                defaultValue={student.student_number ?? ""}
                 placeholder="مثلاً: 99120001"
                 className={inputCls}
               />
@@ -66,7 +82,7 @@ export default async function StudentProfilePage() {
               <input
                 name="gpa"
                 dir="ltr"
-                defaultValue={student?.gpa ?? ""}
+                defaultValue={student.gpa ?? ""}
                 placeholder="مثلاً: 17.5"
                 className={inputCls}
               />
@@ -75,7 +91,7 @@ export default async function StudentProfilePage() {
               <input
                 name="resumeUrl"
                 dir="ltr"
-                defaultValue={student?.resumeUrl ?? ""}
+                defaultValue={student.resume ?? ""}
                 placeholder="https://..."
                 className={inputCls}
               />
@@ -86,7 +102,7 @@ export default async function StudentProfilePage() {
             <textarea
               name="skills"
               rows={3}
-              defaultValue={s.skills?.join("، ")}
+              defaultValue={student.skills?.join("، ")}
               className={inputCls}
             />
           </Field>
@@ -94,7 +110,7 @@ export default async function StudentProfilePage() {
           <Field label="علاقه‌مندی‌ها">
             <input
               name="interests"
-              defaultValue={student?.interests ?? ""}
+              defaultValue={student.interests ?? ""}
               placeholder="مثلاً: توسعه فرانت‌اند، هوش مصنوعی..."
               className={inputCls}
             />
@@ -104,7 +120,7 @@ export default async function StudentProfilePage() {
             <textarea
               name="about"
               rows={4}
-              defaultValue={student?.about ?? ""}
+              defaultValue={student.about ?? ""}
               placeholder="چند جمله درباره خودتان، تجربه‌ها و اهداف‌تان بنویسید..."
               className={inputCls}
             />
